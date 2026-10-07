@@ -2,7 +2,32 @@ const pool = require("../config/db");
 
 const getAllTasks = async (req, res) => {
   try {
-    const { completed, user_id, search } = req.query;
+    const { completed, user_id, search, page = "1", limit = "5" } = req.query;
+
+    // validate page
+    const pageNumber = Number(page);
+
+    if (!Number.isInteger(pageNumber) || pageNumber <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Page must be a positive integer",
+      });
+    }
+    // validate limit
+    const limitNumber = Number(limit);
+
+    if (
+      !Number.isInteger(limitNumber) ||
+      limitNumber <= 0 ||
+      limitNumber > 100
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Limit must be between 1 and 100",
+      });
+    }
+
+    const offset = (pageNumber - 1) * limitNumber;
 
     let query = `
       SELECT
@@ -60,18 +85,57 @@ const getAllTasks = async (req, res) => {
       values.push(`%${search.trim()}%`);
       conditions.push(`t.title ILIKE $${values.length}`);
     }
+
+    //WHERE
     if (conditions.length > 0) {
       query += ` WHERE ${conditions.join(" AND ")}`;
     }
 
+    // Count total matching tasks
+    const countQuery = `
+      SELECT COUNT(*) AS total
+      FROM tasks AS t
+      INNER JOIN users AS u
+        ON t.user_id = u.id
+      ${conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : ""}
+    `;
+
+    const countResult = await pool.query(countQuery, values);
+
+    const total = Number(countResult.rows[0].total);
+
+    // Pagination placeholders
+    values.push(limitNumber);
+    const limitPlaceholder = `$${values.length}`;
+
+    values.push(offset);
+    const offsetPlaceholder = `$${values.length}`;
+
     //sorting by id in descending order
-    query += ` ORDER BY t.id DESC`;
+    query += ` ORDER BY t.id DESC LIMIT ${limitPlaceholder} OFFSET ${offsetPlaceholder} `;
 
     const result = await pool.query(query, values);
 
-    res
-      .status(200)
-      .json({ success: true, count: result.rows.length, tasks: result.rows });
+    //pagination calculation
+    const totalPages = Math.ceil(total / limitNumber);
+
+    const hasNextPage = pageNumber < totalPages;
+
+    const hasPreviousPage = pageNumber > 1;
+
+    res.status(200).json({
+      success: true,
+      pagination: {
+        page: pageNumber,
+        limit: limitNumber,
+        total,
+        totalPages,
+        hasNextPage,
+        hasPreviousPage,
+      },
+      count: result.rows.length,
+      tasks: result.rows,
+    });
   } catch (error) {
     console.error("Error fetching tasks:", error);
     res.status(500).json({ success: false, message: "Error fetching tasks" });
