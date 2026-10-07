@@ -5,12 +5,17 @@ const {
   getTaskById,
   updateTask,
   deleteTask,
+  patchTask,
 } = require("../controllers/taskController");
+
+const validateTaskId = require("../middleware/validateTaskId");
+
 const router = express.Router();
 
 router.get("/", getAllTasks);
 router.post("/", createTask);
-router.get("/:id", getTaskById);
-router.put("/:id", updateTask);
-router.delete("/:id", deleteTask);
+router.get("/:id", validateTaskId, getTaskById);
+router.put("/:id", validateTaskId, updateTask);
+router.delete("/:id", validateTaskId, deleteTask);
+router.patch("/:id", validateTaskId, patchTask);
 module.exports = router;

@@ -2,20 +2,73 @@ const pool = require("../config/db");
 
 const getAllTasks = async (req, res) => {
   try {
-    const result = await pool.query(
-      `
+    const { completed, user_id, search } = req.query;
+
+    let query = `
       SELECT
         t.id,
         t.title,
         t.completed,
         t.created_at,
+        t.user_id,
         u.name
       FROM tasks as t
       INNER JOIN users as u
         ON t.user_id = u.id
-      ORDER BY t.id DESC
-      `,
-    );
+    
+      `;
+
+    const conditions = [];
+    const values = [];
+
+    // completed filter
+    if (completed !== undefined) {
+      if (completed !== "true" && completed !== "false") {
+        return res.status(400).json({
+          success: false,
+          message: "Completed must be true or false",
+        });
+      }
+
+      values.push(completed === "true");
+      conditions.push(`t.completed = $${values.length}`);
+    }
+
+    // user_id filter
+    if (user_id !== undefined) {
+      const user_Id = Number(user_id);
+
+      if (!Number.isInteger(user_Id) || user_Id <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: "A valid user_id is required",
+        });
+      }
+
+      values.push(user_id);
+      conditions.push(`t.user_id = $${values.length}`);
+    }
+
+    // search filter
+    if (search !== undefined) {
+      if (typeof search !== "string" || !search.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: "Search must be a valid value",
+        });
+      }
+      values.push(`%${search.trim()}%`);
+      conditions.push(`t.title ILIKE $${values.length}`);
+    }
+    if (conditions.length > 0) {
+      query += ` WHERE ${conditions.join(" AND ")}`;
+    }
+
+    //sorting by id in descending order
+    query += ` ORDER BY t.id DESC`;
+
+    const result = await pool.query(query, values);
+
     res
       .status(200)
       .json({ success: true, count: result.rows.length, tasks: result.rows });
@@ -73,16 +126,7 @@ const createTask = async (req, res) => {
 
 const getTaskById = async (req, res) => {
   try {
-    const { id } = req.params;
-
-    const taskId = Number(id);
-
-    if (!Number.isInteger(taskId) || taskId <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid task ID",
-      });
-    }
+    const taskId = req.taskId;
 
     const result = await pool.query(
       `
@@ -113,17 +157,9 @@ const getTaskById = async (req, res) => {
 
 const updateTask = async (req, res) => {
   try {
-    const { id } = req.params;
     const { title, completed } = req.body;
 
-    const taskId = Number(id);
-
-    if (!Number.isInteger(taskId) || taskId <= 0) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid task ID",
-      });
-    }
+    const taskId = req.taskId;
 
     if (!title || typeof title !== "string" || !title.trim()) {
       return res.status(400).json({
@@ -162,18 +198,73 @@ const updateTask = async (req, res) => {
   }
 };
 
-const deleteTask = async (req, res) => {
+const patchTask = async (req, res) => {
   try {
-    const { id } = req.params;
+    const taskId = req.taskId;
 
-    const taskId = Number(id);
+    const { title, completed } = req.body;
 
-    if (!Number.isInteger(taskId) || taskId <= 0) {
+    if (title === undefined && completed === undefined) {
       return res.status(400).json({
         success: false,
-        message: "Invalid task ID",
+        message: "Provide title or completed to update",
       });
     }
+
+    if (title !== undefined && (typeof title !== "string" || !title.trim())) {
+      return res.status(400).json({
+        success: false,
+        message: "Title must be a valid string",
+      });
+    }
+
+    if (completed !== undefined && typeof completed !== "boolean") {
+      return res.status(400).json({
+        success: false,
+        message: "Completed must be true or false",
+      });
+    }
+
+    const result = await pool.query(
+      `
+      UPDATE tasks
+      SET
+        title = COALESCE($1, title),
+        completed = COALESCE($2, completed)
+      WHERE id = $3
+      RETURNING *
+      `,
+      [
+        title !== undefined ? title.trim() : null,
+        completed !== undefined ? completed : null,
+        taskId,
+      ],
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({
+        success: false,
+        message: "Task not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      task: result.rows[0],
+    });
+  } catch (error) {
+    console.error("Error updating task:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update task",
+    });
+  }
+};
+
+const deleteTask = async (req, res) => {
+  try {
+    const taskId = req.taskId;
 
     const result = await pool.query(
       `
@@ -193,7 +284,7 @@ const deleteTask = async (req, res) => {
     res.status(200).json({
       success: true,
       message: "Task deleted successfully",
-      result: result.rows[0],
+      task: result.rows[0],
     });
   } catch (error) {
     console.error("Error deleting task:", error);
@@ -206,5 +297,6 @@ module.exports = {
   createTask,
   getTaskById,
   updateTask,
+  patchTask,
   deleteTask,
 };
