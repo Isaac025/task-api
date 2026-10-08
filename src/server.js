@@ -4,6 +4,7 @@ const express = require("express");
 const cors = require("cors");
 const pool = require("./config/db");
 const taskRoutes = require("./routes/taskRoutes");
+const errorHandler = require("./middleware/errorHandler");
 
 const app = express();
 
@@ -11,6 +12,24 @@ app.use(cors());
 app.use(express.json());
 
 app.use("/api/tasks", taskRoutes);
+//error handling middleware should be the last middleware added to the stack
+
+// Handle unknown routes
+app.use((req, res, next) => {
+  const error = new Error(`Route not found: ${req.method} ${req.originalUrl}`);
+
+  error.statusCode = 404;
+
+  next(error);
+});
+
+app.get("/api/test-error", (req, res, next) => {
+  const error = new Error("Something went wrong");
+
+  next(error);
+});
+
+app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 

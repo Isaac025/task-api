@@ -1,8 +1,16 @@
 const pool = require("../config/db");
 
-const getAllTasks = async (req, res) => {
+const getAllTasks = async (req, res, next) => {
   try {
-    const { completed, user_id, search, page = "1", limit = "5" } = req.query;
+    const {
+      completed,
+      user_id,
+      search,
+      page = "1",
+      limit = "5",
+      sortBy = "created_at", // default sort by created_at (will still show newest tasks first.)
+      order = "desc",
+    } = req.query;
 
     // validate page
     const pageNumber = Number(page);
@@ -24,6 +32,30 @@ const getAllTasks = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "Limit must be between 1 and 100",
+      });
+    }
+
+    // Validate sorting
+    const allowedSortColumns = {
+      id: "t.id",
+      title: "t.title",
+      created_at: "t.created_at",
+      completed: "t.completed",
+    };
+
+    if (!allowedSortColumns[sortBy]) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid sort field",
+      });
+    }
+
+    const normalizedOrder = order.toLowerCase();
+
+    if (!["asc", "desc"].includes(normalizedOrder)) {
+      return res.status(400).json({
+        success: false,
+        message: "Order must be asc or desc",
       });
     }
 
@@ -111,9 +143,14 @@ const getAllTasks = async (req, res) => {
     values.push(offset);
     const offsetPlaceholder = `$${values.length}`;
 
-    //sorting by id in descending order
-    query += ` ORDER BY t.id DESC LIMIT ${limitPlaceholder} OFFSET ${offsetPlaceholder} `;
+    //sorting
+    const sortColumn = allowedSortColumns[sortBy];
 
+    query += `
+  ORDER BY ${sortColumn} ${normalizedOrder}
+  LIMIT ${limitPlaceholder}
+  OFFSET ${offsetPlaceholder}
+`;
     const result = await pool.query(query, values);
 
     //pagination calculation
@@ -137,8 +174,7 @@ const getAllTasks = async (req, res) => {
       tasks: result.rows,
     });
   } catch (error) {
-    console.error("Error fetching tasks:", error);
-    res.status(500).json({ success: false, message: "Error fetching tasks" });
+    next(error); // Pass the error to the error handling middleware
   }
 };
 
