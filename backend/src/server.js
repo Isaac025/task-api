@@ -13,8 +13,23 @@ app.use(express.json());
 
 app.use("/api/tasks", taskRoutes);
 
+const PORT = process.env.PORT || 5000;
+
 app.get("/", (req, res) => {
   res.status(200).json({ message: "Task Manager API is running" });
+});
+
+app.get("/test-db", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT Now()");
+    res.status(200).json({
+      message: "Database connected successfully",
+      time: result.rows[0],
+    });
+  } catch (error) {
+    console.error("Database connection error:", error);
+    res.status(500).json({ message: "Error connecting to the database" });
+  }
 });
 
 //error handling middleware should be the last middleware added to the stack
@@ -35,25 +50,6 @@ app.get("/api/test-error", (req, res, next) => {
 });
 
 app.use(errorHandler);
-
-const PORT = process.env.PORT || 5000;
-
-app.get("/", (req, res) => {
-  res.status(200).json({ message: "Task Manager API is running" });
-});
-
-app.get("/test-db", async (req, res) => {
-  try {
-    const result = await pool.query("SELECT Now()");
-    res.status(200).json({
-      message: "Database connected successfully",
-      time: result.rows[0],
-    });
-  } catch (error) {
-    console.error("Database connection error:", error);
-    res.status(500).json({ message: "Error connecting to the database" });
-  }
-});
 
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
