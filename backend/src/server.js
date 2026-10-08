@@ -12,6 +12,11 @@ app.use(cors());
 app.use(express.json());
 
 app.use("/api/tasks", taskRoutes);
+
+app.get("/", (req, res) => {
+  res.status(200).json({ message: "Task Manager API is running" });
+});
+
 //error handling middleware should be the last middleware added to the stack
 
 // Handle unknown routes
