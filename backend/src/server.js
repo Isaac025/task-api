@@ -34,17 +34,17 @@ app.get("/test-db", async (req, res) => {
 
 //error handling middleware should be the last middleware added to the stack
 
+app.get("/api/test-error", (req, res, next) => {
+  const error = new Error("Something went wrong");
+
+  next(error);
+});
+
 // Handle unknown routes
 app.use((req, res, next) => {
   const error = new Error(`Route not found: ${req.method} ${req.originalUrl}`);
 
   error.statusCode = 404;
-
-  next(error);
-});
-
-app.get("/api/test-error", (req, res, next) => {
-  const error = new Error("Something went wrong");
 
   next(error);
 });
