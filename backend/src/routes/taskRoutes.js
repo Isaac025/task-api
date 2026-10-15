@@ -8,9 +8,14 @@ const {
   patchTask,
 } = require("../controllers/taskController");
 
+const protect = require("../middleware/authMiddleware");
+
 const validateTaskId = require("../middleware/validateTaskId");
 
 const router = express.Router();
+
+// All routes below require authentication
+router.use(protect);
 
 router.get("/", getAllTasks);
 router.post("/", createTask);
