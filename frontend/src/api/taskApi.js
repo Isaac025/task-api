@@ -1,9 +1,7 @@
-import axios from "axios";
-
-const API_URL = "http://localhost:5000/api";
+import apiClient from "./apiClient";
 
 export const getTasks = async (params = {}) => {
-  const response = await axios.get(`${API_URL}/tasks`, {
+  const response = await apiClient.get("/tasks", {
     params,
   });
 
@@ -11,19 +9,19 @@ export const getTasks = async (params = {}) => {
 };
 
 export const createTask = async (taskData) => {
-  const response = await axios.post(`${API_URL}/tasks`, taskData);
+  const response = await apiClient.post("/tasks", taskData);
 
   return response.data;
 };
 
 export const updateTask = async (id, taskData) => {
-  const response = await axios.patch(`${API_URL}/tasks/${id}`, taskData);
+  const response = await apiClient.patch(`/tasks/${id}`, taskData);
 
   return response.data;
 };
 
 export const deleteTask = async (id) => {
-  const response = await axios.delete(`${API_URL}/tasks/${id}`);
+  const response = await apiClient.delete(`/tasks/${id}`);
 
   return response.data;
 };
